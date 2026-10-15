@@ -1,0 +1,4 @@
+# dsh-session-tool：把插件挂进 profile。
+- insert:
+    - id: dsh-session-tool
+      name: dsh-session-tool
