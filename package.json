@@ -1,7 +1,7 @@
 {
   "name": "dsh-session-tool",
-  "version": "0.2.1",
-  "description": "DSH plugin: delete sessions (including archived ones) via slash commands and agent tools. Trash-first, workspace-accounting aware.",
+  "version": "0.3.0",
+  "description": "DSH plugin: delete sessions from the sidebar (row menu + hover button) and via slash commands and agent tools. Trash-first, workspace-accounting aware.",
   "type": "module",
   "license": "MIT",
   "main": "lib/index.js",
@@ -9,11 +9,17 @@
     ".": {
       "default": "./lib/index.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./client": {
+      "default": "./lib/client.js"
+    }
   },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
     }
   },
   "files": [
