@@ -1,5 +1,4 @@
 # dsh-session-tool
-
 给 [DeepSeek Harness](https://github.com/deepseek-ai)（DSH）补上**删除会话**能力的宿主插件。
 
 DSH 官方只有「归档」—— 归档只是把会话从界面隐藏，日志文件原封不动躺在磁盘上，没有删除入口。本插件补上这个能力。
