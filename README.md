@@ -117,4 +117,5 @@ MIT
 
 ## 致谢
 
-删除链路的部分设计（先删文件后动记账、走 live storageDomain 清账、运行中会话处理）参考了 [@pepsi-ai/dsh-plugin-session-delete](https://github.com/pepsi-ai/dsh-session-delete)。
+- 删除链路的部分设计（先删文件后动记账、走 live storageDomain 清账、运行中会话处理）参考了 [@pepsi-ai/dsh-plugin-session-delete](https://github.com/pepsi-ai/dsh-session-delete)。
+- 图形界面与宿主通信的思路同样受其启发：第三方插件无法新增 Typert RPC namespace，因此用**同源 HTTP 路由**做宿主↔浏览器桥接。本项目改用官方插槽（`sidebar.workspaces.session.menu.item` / `.row.action`）实现菜单项，未使用 DOM 注入。
