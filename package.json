@@ -1,9 +1,9 @@
 {
   "name": "dsh-session-tool",
   "version": "0.2.0",
-  "private": true,
+  "description": "DSH plugin: delete sessions (including archived ones) via slash commands and agent tools. Trash-first, workspace-accounting aware.",
   "type": "module",
-  "description": "删除会话（含已归档）的 DSH 宿主插件：/sessions-archived 查看、/sessions-delete 删除；默认进回收目录，--purge 永久，--stop 允许删运行中的会话；另提供 session_delete / session_archived_list 两个 agent 工具。",
+  "license": "MIT",
   "main": "lib/index.js",
   "exports": {
     ".": {
@@ -16,15 +16,18 @@
       "patch": "./cordis.patch.yml"
     }
   },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.19"
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.4"
   },
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/immortal-akx/dsh-session-tool.git"
-  },
-  "homepage": "https://github.com/immortal-akx/dsh-session-tool#readme",
   "keywords": [
     "dsh",
     "dsh-plugin",
@@ -32,13 +35,13 @@
     "cordis",
     "session"
   ],
-  "engines": {
-    "node": ">=22.19"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/immortal-akx/dsh-session-tool.git"
   },
-  "files": [
-    "lib",
-    "cordis.patch.yml",
-    "README.md",
-    "LICENSE"
-  ]
+  "homepage": "https://github.com/immortal-akx/dsh-session-tool#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
 }
