@@ -15,25 +15,34 @@ DSH 官方只有「归档」—— 归档只是把会话从界面隐藏，日志
 
 ## 安装
 
-**方式一：npm（推荐 —— 可在 DSH 插件市场里直接搜到）**
+> ⚠️ 下面命令里的 `<profile>` 是**占位符**，请替换成你自己的 profile 名，
+> **不要把尖括号一起输入**。常见值：Web / TUI 端用 `web`，桌面端用 `desktop`。
+
+### 一行搞定（Web 端，可直接复制粘贴）
 
 ```console
-dsh plugin --profile <profile> add dsh-session-tool
+dsh plugin --profile web add dsh-session-tool
 ```
 
-**方式二：直接从 GitHub 安装**
+> 桌面端把 `web` 换成 `desktop`；其他 profile 换成你自己的名字。
+
+### 其他安装方式
+
+**从 GitHub 安装**（npm 镜像尚未同步时可用）：
 
 ```console
-dsh plugin --profile <profile> add github:immortal-akx/dsh-session-tool
+dsh plugin --profile web add github:immortal-akx/dsh-session-tool
 ```
 
-**方式三：本地开发目录**
+**从本地开发目录安装**：
 
 ```console
-dsh plugin --profile <profile> add file:C:/path/to/dsh-session-tool
+dsh plugin --profile web add file:C:/path/to/dsh-session-tool
 ```
 
-重启 DSH 生效。
+### 装完重启
+
+安装后**重启 DSH** 生效（Host 插件在启动时加载）。
 
 ## 用法
 
