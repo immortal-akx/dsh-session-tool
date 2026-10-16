@@ -119,3 +119,49 @@ MIT
 
 - 删除链路的部分设计（先删文件后动记账、走 live storageDomain 清账、运行中会话处理）参考了 [@pepsi-ai/dsh-plugin-session-delete](https://github.com/pepsi-ai/dsh-session-delete)。
 - 图形界面与宿主通信的思路同样受其启发：第三方插件无法新增 Typert RPC namespace，因此用**同源 HTTP 路由**做宿主↔浏览器桥接。本项目改用官方插槽（`sidebar.workspaces.session.menu.item` / `.row.action`）实现菜单项，未使用 DOM 注入。
+
+## 自定义界面
+
+改 profile 的 `cordis.patch.yml`（路径：`~/.dsh/profiles/<profile>/cordis.patch.yml`），加一段 `config`，**重启 DSH 后生效**：
+
+```yaml
+- id: dsh-session-tool
+  name: dsh-session-tool
+  config:
+    menu:
+      label: "删除会话"   # ⋯ 菜单里的文案（留空 = 跟随语言）
+      order: 500         # 在 ⋯ 菜单里的位置（越小越靠前）
+      hidden: false      # 隐藏这一项
+      danger: true       # 红色危险样式
+      icon: true         # 显示垃圾桶图标
+    rowAction:
+      order: 200
+      hidden: false      # 隐藏会话行悬停时的垃圾桶按钮
+    header:
+      order: 30
+      hidden: false      # 隐藏会话头部的垃圾桶按钮
+    trash:
+      menu: true         # 在 ⋯ 菜单里加一条「打开回收站」
+      label: ""          # 自定义它的文案
+```
+
+例子：只保留头部按钮、隐藏侧栏两项，并把文案改成「删掉这个会话」：
+
+```yaml
+- id: dsh-session-tool
+  name: dsh-session-tool
+  config:
+    menu: { label: "删掉这个会话", hidden: true }
+    rowAction: { hidden: true }
+```
+
+## 回收站
+
+删除默认只是**搬家**（`$DSH_HOME/session-trash/<时间戳>/session-xxx-…/`），不是销毁：
+
+| 操作 | 方式 |
+| --- | --- |
+| 查看回收站 | `/sessions-trash` |
+| 打开回收站目录 | 弹窗成功页的「打开回收站」按钮 · `/sessions-trash --open` · ⋯ 菜单里的「打开回收站」 |
+| 恢复某个会话 | 把该批次里的 `session-xxx-…` 文件夹搬回 `$DSH_HOME/sessions/<工作区分组>/` |
+| 永久删除 | 删除时加 `--purge`（**不可恢复**） |
