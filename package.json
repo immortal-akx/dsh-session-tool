@@ -30,7 +30,9 @@
     "lib",
     "cordis.patch.yml",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "changelog",
+    "docs"
   ],
   "engines": {
     "node": ">=22.19"
