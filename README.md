@@ -1,199 +1,390 @@
 # dsh-session-tool
-给 [DeepSeek Harness](https://github.com/deepseek-ai)（DSH）补上**删除会话**能力的宿主插件。
 
-DSH 官方只有「归档」—— 归档只是把会话从界面隐藏，日志文件原封不动躺在磁盘上，没有删除入口。本插件补上这个能力。
+会话太多删不掉？归档只是隐藏、记录还躺在磁盘上？想给一个会话换个名字还要翻菜单？
 
-## 特性
+**给 DSH 补上会话管理：侧栏「⋯」菜单一键删除（永久删除、可配置），对话区头部一键重命名。**
 
-- **斜杠命令**：`/sessions-archived` 查看、`/sessions-delete` 删除（`/` 菜单自动出现，无需客户端界面）
-- **agent 工具**：`session_archived_list` / `session_delete`，模型可直接调用
-- **默认安全**：删除先进回收目录，`--purge` 才永久删除；`--yes` 显式确认；拒绝删除当前会话
-- **运行中的会话**默认拒绝删除，`--stop` 才先取消回合并等待静默
-- **完整清理链路**：日志目录 + 投影缓存 + 工作区记账（含归档集合）一起清，走活的 `storageDomain`，内存与磁盘一致
-- **零依赖**：只用 Node 内置模块 + DSH 宿主服务，不 import 任何 `@deepseek-ai` 的值
+> ⚠️ **删除是永久删除，不可恢复**（本插件没有回收站）。删除**正在运行**的会话时，会**先停止该会话，然后再删除**。
+
+![界面示意](docs/preview.png)
 
 ## 安装
 
-> ⚠️ 下面命令里的 `<profile>` 是**占位符**，请替换成你自己的 profile 名，
-> **不要把尖括号一起输入**。常见值：Web / TUI 端用 `web`，桌面端用 `desktop`。
+```sh
+# npm
+dsh plugin --profile <profile> add dsh-session-tool
 
-### 一行搞定（Web 端，可直接复制粘贴）
+# 本地目录
+dsh plugin --profile <profile> add file:C:/path/to/dsh-session-tool
 
-```console
-dsh plugin --profile web add dsh-session-tool
+# GitHub
+dsh plugin --profile <profile> add github:<owner>/dsh-session-tool
 ```
 
-> 桌面端把 `web` 换成 `desktop`；其他 profile 换成你自己的名字。
+装完**重启 DSH**。`<profile>` 替换成你的 profile 名（如 `web`、`desktop`）。
 
-### 其他安装方式
+## 功能
 
-**从 GitHub 安装**（npm 镜像尚未同步时可用）：
+- **⋯ 菜单「删除会话」**：文案、顺序、显隐、红色危险样式、禁用态都可配置
+- **头部「重命名会话」✏️**：走官方 `sessions` 服务，改完侧栏与头部标题即时更新
+- **一次确认**：勾选「我已了解后果」才能点删除（未勾选时按钮禁用）
+- **永久删除 + 先停止**：运行中的会话先 `cancel` 并等静默（最多 15 秒），再 flush/detach，最后删除目录并清理记账
+- **官方悬停按钮可隐藏**：归档 / 置顶两个图标按钮（只支持 `hidden`）
+- **审计日志**：配置问题与每一次删除都写 `~/.dsh/logs/dsh-session-tool.log`
 
-```console
-dsh plugin --profile web add github:immortal-akx/dsh-session-tool
+## 配置
+
+写在 profile 的 `cordis.patch.yml`（`~/.dsh/profiles/<profile>/cordis.patch.yml`），**键名区分大小写**，改完**重启 DSH** 生效。
+**只写你要改的部分**，没写的键全部用默认值。
+
+### 完整 schema
+
+```yaml
+- id: dsh-session-tool
+  name: dsh-session-tool
+  config:
+    MenuItems:                     # ⋯ 菜单里的项
+      official:                    # 官方 4 项（不写 = 一个都不碰）
+        pin:     { }               # 可写：label / activeLabel / order / hidden
+        rename:  { }               # 只支持 hidden（重命名对话框是官方内部实现）
+        fork:    { }               # 可写：label / order / hidden
+        archive: { }               # 可写：label / activeLabel / order / hidden
+      plugin:
+        delete:
+          label: "删除会话"         # 文案（留空 = 跟随系统语言）
+          order: 500               # 顺序，越小越靠前
+          hidden: false            # true = 隐藏这一项
+          danger: true             # 红色危险样式
+          disabled: false          # 禁用态：变灰、点不动
+          shortcut: null           # 【已登记，本阶段未实现】
+          separatorBefore: false   # 【已登记，本阶段未实现】
+    ButtonItems:                   # 会话行悬停时的图标按钮
+      official:
+        archive: { hidden: false } # 只支持 hidden
+        pin:     { hidden: false } # 只支持 hidden（已归档的行上本来也不显示）
+      plugin: { }                  # 占位：本插件不提供悬停按钮
 ```
 
-**从本地开发目录安装**：
+### order 参考值
 
-```console
-dsh plugin --profile web add file:C:/path/to/dsh-session-tool
+`order` 是普通数字，**升序排列**：越小越靠前；**不写等于 0**（会排在最前面）；数字相同则按注册顺序（官方先注册，排在我们前面）。
+
+| order | 菜单项 | 来源 | 能否修改 |
+| --- | --- | --- | --- |
+| 100 | 置顶会话 `pin` | 官方 | label / activeLabel / order / hidden |
+| 200 | 重命名 `rename` | 官方 | ⚠️ 只能 hidden |
+| 300 | 分叉会话 `fork` | 官方 | label / order / hidden |
+| 400 | 归档会话 `archive` | 官方 | label / activeLabel / order / hidden |
+| 500 | 删除会话 `delete` | 本插件（默认） | 全部字段 |
+
+| order | 悬停按钮 | 来源 | 能否修改 |
+| --- | --- | --- | --- |
+| 100 | 归档按钮 | 官方 | ⚠️ 只能 hidden |
+| 200 | 置顶按钮 | 官方 | ⚠️ 只能 hidden |
+
+### 我的配置（实际在用的）
+
+```yaml
+# order 参考：官方 pin 100 / rename 200 / fork 300 / archive 400；本插件 delete 默认 500
+- id: dsh-session-tool
+  name: dsh-session-tool
+  config:
+    MenuItems:                     # ⋯ 菜单里的项
+      official:                    # 官方 4 项：不写就不碰
+        pin: {}                    # 可写：label / activeLabel / order / hidden
+        rename: {}                 # 只支持 hidden
+        fork: {}                   # 可写：label / order / hidden
+        archive: {}                # 可写：label / activeLabel / order / hidden
+      plugin:
+        delete:                    # 本插件唯一的菜单项
+          label: "删除会话"
+          order: 500
+          hidden: false
+          danger: true             # 红色危险样式
+          disabled: false          # 禁用态（变灰、点不动）
+    ButtonItems:                   # 会话行【悬停时】的图标按钮
+      official:
+        archive:
+          hidden: true             # 隐藏官方悬停「归档」按钮
+        pin:
+          hidden: true             # 隐藏官方悬停「置顶」按钮
+      plugin: {}                   # 占位：本插件不提供悬停按钮
 ```
 
-### 装完重启
+## 界面
 
-安装后**重启 DSH** 生效（Host 插件在启动时加载）。
-
-## 图形界面（推荐）
-
-重启 DSH 后，侧栏每个会话行都会多出删除入口：
-
-| 位置 | 操作 |
+| 位置 | 内容 |
 | --- | --- |
-| **会话行的 "..." 菜单** | 鼠标移到会话行 → 点行尾的 **⋯** → 菜单底部 **「删除会话」**（红色，带垃圾桶图标） |
-| **会话行悬停按钮** | 鼠标停在会话行上 → 行尾出现 **🗑 删除** 按钮 |
+| 侧栏会话行「⋯」菜单 | 「删除会话」（文案/顺序/显隐/危险样式/禁用态可配） |
+| 对话区头部工具栏 | ✏️「重命名会话」（该排最左侧） |
+| 会话行悬停区 | 官方归档/置顶按钮（可隐藏）；本插件不提供悬停按钮 |
 
-点击后会弹出确认框，确认即删除。安全设计：
+**删除弹窗四态**
 
-- 默认**移入回收目录**（`$DSH_HOME/session-trash/<时间戳>/`），可手动搬回恢复
-- **运行中的会话**会二次确认，确认后先停止其任务再删除
-- 删除后侧栏那一行自动消失（若未消失，刷新页面即可）
+| 状态 | 触发 | 表现 |
+| --- | --- | --- |
+| 正常 | 会话在列表且未运行 | 副标题「删除后，该对话将不可恢复」+ 勾选框 + 删除按钮（未勾选时禁用） |
+| 运行中 | 会话正在运行 | 多一行 ⚠「会话正在运行 —— 删除会立即中断它正在进行的任务」，勾选框与按钮变成「停止并删除」 |
+| 会话不存在 | 列表里找不到该会话 | 提示刷新后重试，隐藏勾选框、禁用删除按钮 |
+| 删除成功 | 删除完成 | 「已删除」+「该对话已永久删除，无法恢复。」+ 完成按钮 |
 
-## 命令（不想用鼠标时）
+**重命名**：输入框预填当前名称、自动聚焦；名称为空时「确定」禁用；回车提交、Esc 取消；失败在弹窗内显示原因。
 
+## 实现说明
 
-在任意会话输入框敲 `/`：
+**删除链路**（六步）
 
-| 命令 | 作用 |
-| --- | --- |
-| `/sessions-archived` | 列出已归档会话：标题 / 创建时间 / 占用 / id / 是否运行中 / 文件是否还在 |
-| `/sessions-delete` | 删除已归档会话 |
+1. 界面校验：回环地址 + 同源请求（其他来源 403，方法不对 405）
+2. 运行中的会话：`cancel` 取消回合并等待静默（最多 15 秒）
+3. `flush` 写盘 + 从内存会话表 `detach`，避免收尾阶段把日志目录重建回来
+4. **删除磁盘目录**（收尾再扫一遍）—— 这一步是永久删除，文件不进入任何回收目录
+5. 清理记账：投影缓存行、投影缓存文件、工作区 `sessionIds`、归档集合
+6. 写审计日志
 
-```text
-/sessions-delete                            预览：将删哪些（不动手）
-/sessions-delete all --yes                  删除全部 → 移入回收目录
-/sessions-delete 1,3 --yes                  按序号删
-/sessions-delete 6cf4aa57 --yes             按 id 前缀删
-/sessions-delete all --stop --yes           连"正在运行"的会话也删（先停止其任务）
-/sessions-delete all --purge --yes          永久删除（不进回收目录）
+**加载稳健性**
+
+- 客户端 `apply` **必须同步完成**：任何 `await`（尤其是网络请求）都可能让入口永远停在 `loading`
+- 界面配置在后台读取（3 秒超时、失败重试 5 次 × 2 秒），到达后自动重建注册；读不到就用默认值
+- 宿主的三条 HTTP 路由按**进程级单例**注册（同进程重复加载时复用，不撞 `duplicate exact route`）
+
+**官方悬停按钮的隐藏是怎么实现的（维护提示）**
+
+插槽契约写着「复用官方 id 就会替换那一行」，但实测**跨插件不可靠**：框架给每个插件各自分配注册优先级，
+官方注册的条目数量多、计数更靠前，于是官方那行仍然胜出。所以本插件改用 **DOM/CSS 级隐藏**：
+
+```html
+<style id="dsh-session-tool-hide-shipped">
+  button[aria-label="归档会话"],button[aria-label="取消归档"],
+  button[aria-label="Archive session"],button[aria-label="Unarchive session"],
+  button[aria-label="置顶会话"],button[aria-label="取消置顶"],
+  button[aria-label="Pin session"],button[aria-label="Unpin session"] { display: none !important; }
+</style>
 ```
 
-删除后文件在 `$DSH_HOME/session-trash/<时间戳>/`，想恢复就把 `session-<id>` 文件夹搬回 `$DSH_HOME/sessions/<原分组>/`。
+> ⚠️ **维护提示**：这段选择器依赖官方按钮的 `aria-label` 文案（中英各 2 种状态，共 8 条）。
+> 如果 DSH 更新后官方改了这些文案（或新增状态），隐藏会失效 —— 此时只需在 `lib/client.js` 的
+> `ARCHIVE_LABELS` / `PIN_LABELS` 两个数组里补上新文案即可。日志里每次加载都会记录 `cssRules=<条数>`，可用来核对。
 
-## agent 工具
+## 日志
 
-| 工具 | 参数 |
-| --- | --- |
-| `session_archived_list` | 无 |
-| `session_delete` | `sessionIds`（必填）、`purge`（默认 false = 进回收目录）、`stop`（默认 false = 拒绝运行中的会话） |
+`~/.dsh/logs/dsh-session-tool.log`（超过 1 MB 轮转为 `.log.1`）
 
-## 安全设计
+```
+[2026-10-16T09:08:44.519Z] delete ok     id=session-9cc49402-…  title="创建三个空子智能（9cc49402）"  running=false  stopped=false  dirs=1  elapsed=0.0s
+[...] plugin info   HTTP 路由已注册：/list /config /diag /delete
+[...] config warn   未知的配置键 "menuItems" → 你是否想写 "MenuItems"？（键名区分大小写）
+[...] client info   config #1: ok | changed=true | hiddenButtons=archive,pin | cssRules=8
+```
 
-1. **默认不真删** —— 移到 `$DSH_HOME/session-trash/<时间戳>/`，可手动恢复
-2. **必须显式确认** —— 不带 `--yes` 只预览
-3. **拒绝删当前会话** —— 正在对话的这个会被跳过
-4. **运行中的会话默认拒绝** —— `--stop` 才先 `agent.cancel()` + 等静默（15 秒上限）
-5. **删前先 flush + detach** —— 把会话从内存表摘除，避免 dispose 阶段把日志目录重建回来
-6. **先删文件、后动记账** —— 文件确认删净才清记账，半删的会话不会掉进「未分组」
-7. **走活的 storageDomain 清账** —— 投影缓存行、工作区 `sessionIds`、归档集合三处一起改
-8. **陈旧登记** —— 归档表里有 id 但文件早没了的，只清理登记
-
-## 实现
-
-- 宿主插件：`ctx.commands.register()` 注册斜杠命令，`ctx.get('tools').register()` 注册工具
-- 只依赖宿主服务：`commands` / `tools` / `agents` / `sessions` / `storageDomain` / `workspaceRegistry`
-- 入口 `lib/index.js`，挂载声明 `cordis.patch.yml`
-
-> 为什么不做侧栏按钮：DSH 客户端↔宿主是代码生成的 Typert RPC，第三方插件无法新增接口。斜杠命令 + agent 工具是插件可用的官方入口。
+配置写错**不会**打断 DSH 启动，只会记一行日志并忽略该项。
 
 ## 卸载
 
-```console
+```sh
 dsh plugin --profile <profile> remove dsh-session-tool
 ```
+
+## 更新日志
+
+完整版本记录见 [`changelog/CHANGELOG.md`](changelog/CHANGELOG.md)。
 
 ## 许可
 
 MIT
 
-## 致谢
+---
 
-- 删除链路的部分设计（先删文件后动记账、走 live storageDomain 清账、运行中会话处理）参考了 [@pepsi-ai/dsh-plugin-session-delete](https://github.com/pepsi-ai/dsh-session-delete)。
-- 图形界面与宿主通信的思路同样受其启发：第三方插件无法新增 Typert RPC namespace，因此用**同源 HTTP 路由**做宿主↔浏览器桥接。本项目改用官方插槽（`sidebar.workspaces.session.menu.item` / `.row.action`）实现菜单项，未使用 DOM 注入。
+# dsh-session-tool
 
-## 自定义界面
+Too many sessions and no way to remove them? Archiving only hides a session while its files stay on disk? Renaming a session means digging through menus?
 
-改 profile 的 `cordis.patch.yml`（路径：`~/.dsh/profiles/<profile>/cordis.patch.yml`），加一段 `config`，**重启 DSH 后生效**：
+**Session management for DSH: delete from the sidebar "..." menu (permanent, configurable) and rename from the conversation header.**
+
+> ⚠️ **Deletion is permanent and unrecoverable** (there is no trash). Deleting a **running** session first stops it, then removes it.
+
+![UI overview](docs/preview.png)
+
+## Installation
+
+```sh
+# npm
+dsh plugin --profile <profile> add dsh-session-tool
+
+# local checkout
+dsh plugin --profile <profile> add file:C:/path/to/dsh-session-tool
+
+# GitHub
+dsh plugin --profile <profile> add github:<owner>/dsh-session-tool
+```
+
+Restart DSH afterwards. Replace `<profile>` with your profile name (e.g. `web`, `desktop`).
+
+## Features
+
+- **"..." menu item "Delete session"**: label, order, visibility, danger styling and disabled state are all configurable
+- **Header "Rename session"** (pencil): uses the official `sessions` service, so the sidebar and header titles update live
+- **Single confirmation**: the delete button stays disabled until "I understand the consequences" is ticked
+- **Permanent delete, stop-first**: a running session is cancelled and awaited (up to 15 s), flushed and detached, then its directories are removed and the accounting is cleaned
+- **Official hover buttons can be hidden**: the archive and pin icons (only `hidden` is supported)
+- **Audit log**: configuration problems and every deletion are written to `~/.dsh/logs/dsh-session-tool.log`
+
+## Configuration
+
+Put it in the profile patch file `~/.dsh/profiles/<profile>/cordis.patch.yml`. **Keys are case-sensitive** and changes apply after **restarting DSH**.
+**Only write what you want to change** - everything omitted keeps its default.
+
+### Full schema
 
 ```yaml
 - id: dsh-session-tool
   name: dsh-session-tool
   config:
-    menu:
-      label: "删除会话"   # ⋯ 菜单里的文案（留空 = 跟随语言）
-      order: 500         # 在 ⋯ 菜单里的位置（越小越靠前）
-      hidden: false      # 隐藏这一项
-      danger: true       # 红色危险样式
-      icon: true         # 显示垃圾桶图标
-    rowAction:
-      order: 200
-      hidden: false      # 隐藏会话行悬停时的垃圾桶按钮
-    header:
-      order: 30
-      hidden: false      # 隐藏会话头部的垃圾桶按钮
-    trash:
-      menu: true         # 在 ⋯ 菜单里加一条「打开回收站」
-      label: ""          # 自定义它的文案
+    MenuItems:                     # items in the "..." menu
+      official:                    # the 4 shipped items (omitting one leaves it untouched)
+        pin:     { }               # writable: label / activeLabel / order / hidden
+        rename:  { }               # hidden only (its dialog is official internals)
+        fork:    { }               # writable: label / order / hidden
+        archive: { }               # writable: label / activeLabel / order / hidden
+      plugin:
+        delete:
+          label: "Delete session"   # empty string = follow the system language
+          order: 500               # ascending; smaller values come first
+          hidden: false            # true = hide this item
+          danger: true             # red danger styling
+          disabled: false          # disabled state: greyed out, not clickable
+          shortcut: null           # [registered, not implemented yet]
+          separatorBefore: false   # [registered, not implemented yet]
+    ButtonItems:                   # hover icons on a session row
+      official:
+        archive: { hidden: false } # hidden only
+        pin:     { hidden: false } # hidden only (never shown on archived rows anyway)
+      plugin: { }                  # placeholder: this plugin adds no hover buttons
 ```
 
-例子：只保留头部按钮、隐藏侧栏两项，并把文案改成「删掉这个会话」：
+### order reference
+
+`order` is a plain number, sorted **ascending**: smaller comes first; **omitted means 0** (which puts it first); equal values keep registration order (shipped items register first, so they come before ours).
+
+| order | Menu item | Owner | Editable |
+| --- | --- | --- | --- |
+| 100 | Pin session `pin` | shipped | label / activeLabel / order / hidden |
+| 200 | Rename `rename` | shipped | ⚠️ hidden only |
+| 300 | Fork session `fork` | shipped | label / order / hidden |
+| 400 | Archive session `archive` | shipped | label / activeLabel / order / hidden |
+| 500 | Delete session `delete` | this plugin (default) | every field |
+
+| order | Hover button | Owner | Editable |
+| --- | --- | --- | --- |
+| 100 | Archive | shipped | ⚠️ hidden only |
+| 200 | Pin | shipped | ⚠️ hidden only |
+
+### My configuration (what I actually run)
 
 ```yaml
+# order reference: shipped pin 100 / rename 200 / fork 300 / archive 400; this plugin's delete defaults to 500
 - id: dsh-session-tool
   name: dsh-session-tool
   config:
-    menu: { label: "删掉这个会话", hidden: true }
-    rowAction: { hidden: true }
+    MenuItems:                     # items in the "..." menu
+      official:                    # the 4 shipped items: omit = never touch
+        pin: {}                    # writable: label / activeLabel / order / hidden
+        rename: {}                 # hidden only
+        fork: {}                   # writable: label / order / hidden
+        archive: {}                # writable: label / activeLabel / order / hidden
+      plugin:
+        delete:                    # the only menu item this plugin adds
+          label: "Delete session"
+          order: 500
+          hidden: false
+          danger: true             # red danger styling
+          disabled: false          # disabled state (greyed out, not clickable)
+    ButtonItems:                   # hover icons on a session row
+      official:
+        archive:
+          hidden: true             # hide the shipped archive hover button
+        pin:
+          hidden: true             # hide the shipped pin hover button
+      plugin: {}                   # placeholder: this plugin adds no hover buttons
 ```
 
-## 回收站
+## UI
 
-删除默认只是**搬家**（`$DSH_HOME/session-trash/<时间戳>/session-xxx-…/`），不是销毁：
-
-| 操作 | 方式 |
+| Where | What |
 | --- | --- |
-| 查看回收站 | `/sessions-trash` |
-| 打开回收站目录 | 弹窗成功页的「打开回收站」按钮 · `/sessions-trash --open` · ⋯ 菜单里的「打开回收站」 |
-| 恢复某个会话 | 把该批次里的 `session-xxx-…` 文件夹搬回 `$DSH_HOME/sessions/<工作区分组>/` |
-| 永久删除 | 删除时加 `--purge`（**不可恢复**） |
+| Sidebar session row "..." menu | "Delete session" (label/order/visibility/danger/disabled configurable) |
+| Conversation header toolbar | Pencil "Rename session" (leftmost in that row) |
+| Session row hover area | shipped archive/pin buttons (can be hidden); this plugin adds none |
 
-### 官方那几行也能改（置顶 / 重命名 / 分叉 / 归档）
+**Delete dialog, four states**
 
-官方项由 `@deepseek-ai/dsh-client-ui-workspace` 注册，文案来自它的 locale 字典（**不可覆盖**）。
-本插件用插槽契约允许的方式接管：**复用官方 id 注册**（`pin` / `rename` / `fork` / `archive`），
-行为仍走工作区服务（`pinSession` / `unpinSession` / `archiveSession` / `unarchiveSession` / `forkSession`）。
+| State | Trigger | Behaviour |
+| --- | --- | --- |
+| Normal | session exists and is idle | subtitle "This conversation will be permanently deleted" + checkbox + delete button (disabled until ticked) |
+| Running | session is running | an extra ⚠ line "The session is running - deleting interrupts its work immediately"; checkbox and button become "Stop and delete" |
+| Missing | the session is gone | asks you to refresh, hides the checkbox and disables the delete button |
+| Done | deletion finished | "Deleted" + "The conversation has been permanently deleted." + a finish button |
 
-```yaml
-- id: dsh-session-tool
-  name: dsh-session-tool
-  config:
-    shippedRows:
-      pin:
-        label: "钉住"          # 未置顶时的文案（默认「置顶会话」）
-        activeLabel: "取消钉住" # 已置顶时的文案（默认「取消置顶」）
-        order: 120             # 默认 100
-      fork:
-        label: "开个分支"       # 默认「分叉会话」
-        order: 350             # 默认 300
-      archive:
-        hidden: true           # 直接隐藏这一行
-      rename:
-        hidden: false          # rename 只支持 hidden（重命名对话框是官方内部实现）
+**Rename**: the input is prefilled with the current title and focused; confirm is disabled while empty; Enter submits, Esc cancels; failures are shown inside the dialog.
+
+## Implementation notes
+
+**Delete pipeline** (six steps)
+
+1. UI guard: loopback address plus same-origin request (403 otherwise, 405 for wrong methods)
+2. Running sessions: `cancel` the turn and wait for silence (up to 15 s)
+3. `flush` to disk and `detach` from the in-memory session table so dispose-time writes cannot recreate the log directory
+4. **Remove the directories** (with a final sweep) - this step is permanent, nothing goes to a trash folder
+5. Clean the accounting: projection rows, projection cache file, workspace `sessionIds`, archived set
+6. Write the audit log line
+
+**Load robustness**
+
+- The client `apply` **must finish synchronously**: any `await` (especially a network request) can leave the entry stuck in `loading` forever
+- The UI configuration is fetched in the background (3 s timeout, 5 retries x 2 s) and registrations are rebuilt when it arrives; if it never arrives the defaults are used
+- The three host HTTP routes are registered as a **process-wide singleton** (reused when the plugin loads twice in one process, avoiding `duplicate exact route`)
+
+**How the shipped hover buttons are hidden (maintenance note)**
+
+The slot contract says reusing a shipped id replaces that row, but in practice this is **unreliable across plugins**: the framework assigns
+registration priorities **per plugin**, and the shipped plugin registers many entries so its counter is ahead - the shipped row still wins.
+This plugin therefore uses **DOM/CSS hiding** instead:
+
+```html
+<style id="dsh-session-tool-hide-shipped">
+  button[aria-label="归档会话"],button[aria-label="取消归档"],
+  button[aria-label="Archive session"],button[aria-label="Unarchive session"],
+  button[aria-label="置顶会话"],button[aria-label="取消置顶"],
+  button[aria-label="Pin session"],button[aria-label="Unpin session"] { display: none !important; }
+</style>
 ```
 
-| 字段 | pin | rename | fork | archive |
-| --- | --- | --- | --- | --- |
-| `hidden` | ✅ | ✅ | ✅ | ✅ |
-| `label` / `activeLabel` | ✅ / ✅ | ❌ | ✅ / ❌ | ✅ / ✅ |
-| `order` | ✅ | ❌ | ✅ | ✅ |
+> ⚠️ **Maintenance note**: these selectors depend on the shipped `aria-label` strings (2 states in each of zh/en, 8 rules in total).
+> If a DSH update changes those strings (or adds a state), hiding stops working - just add the new strings to `ARCHIVE_LABELS` /
+> `PIN_LABELS` in `lib/client.js`. Every load logs `cssRules=<count>` so you can verify what was injected.
 
-默认顺序：`pin` 100 · `rename` 200 · `fork` 300 · `archive` 400（本插件的「删除会话」默认 500）。
+## Log
+
+`~/.dsh/logs/dsh-session-tool.log` (rotated to `.log.1` above 1 MB)
+
+```
+[2026-10-16T09:08:44.519Z] delete ok     id=session-9cc49402-...  title="Create three empty subagents (9cc49402)"  running=false  stopped=false  dirs=1  elapsed=0.0s
+[...] plugin info   HTTP routes registered: /list /config /diag /delete
+[...] config warn   unknown config key "menuItems" -> did you mean "MenuItems"? (keys are case-sensitive)
+[...] client info   config #1: ok | changed=true | hiddenButtons=archive,pin | cssRules=8
+```
+
+A bad configuration **never** blocks DSH startup: it only logs one line and ignores that entry.
+
+## Uninstall
+
+```sh
+dsh plugin --profile <profile> remove dsh-session-tool
+```
+
+## Changelog
+
+See [`changelog/CHANGELOG.md`](changelog/CHANGELOG.md) (Chinese).
+
+## License
+
+MIT
