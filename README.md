@@ -165,3 +165,35 @@ MIT
 | 打开回收站目录 | 弹窗成功页的「打开回收站」按钮 · `/sessions-trash --open` · ⋯ 菜单里的「打开回收站」 |
 | 恢复某个会话 | 把该批次里的 `session-xxx-…` 文件夹搬回 `$DSH_HOME/sessions/<工作区分组>/` |
 | 永久删除 | 删除时加 `--purge`（**不可恢复**） |
+
+### 官方那几行也能改（置顶 / 重命名 / 分叉 / 归档）
+
+官方项由 `@deepseek-ai/dsh-client-ui-workspace` 注册，文案来自它的 locale 字典（**不可覆盖**）。
+本插件用插槽契约允许的方式接管：**复用官方 id 注册**（`pin` / `rename` / `fork` / `archive`），
+行为仍走工作区服务（`pinSession` / `unpinSession` / `archiveSession` / `unarchiveSession` / `forkSession`）。
+
+```yaml
+- id: dsh-session-tool
+  name: dsh-session-tool
+  config:
+    shippedRows:
+      pin:
+        label: "钉住"          # 未置顶时的文案（默认「置顶会话」）
+        activeLabel: "取消钉住" # 已置顶时的文案（默认「取消置顶」）
+        order: 120             # 默认 100
+      fork:
+        label: "开个分支"       # 默认「分叉会话」
+        order: 350             # 默认 300
+      archive:
+        hidden: true           # 直接隐藏这一行
+      rename:
+        hidden: false          # rename 只支持 hidden（重命名对话框是官方内部实现）
+```
+
+| 字段 | pin | rename | fork | archive |
+| --- | --- | --- | --- | --- |
+| `hidden` | ✅ | ✅ | ✅ | ✅ |
+| `label` / `activeLabel` | ✅ / ✅ | ❌ | ✅ / ❌ | ✅ / ✅ |
+| `order` | ✅ | ❌ | ✅ | ✅ |
+
+默认顺序：`pin` 100 · `rename` 200 · `fork` 300 · `archive` 400（本插件的「删除会话」默认 500）。

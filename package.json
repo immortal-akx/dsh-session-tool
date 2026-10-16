@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-tool",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "DSH plugin: delete sessions from the sidebar (row menu + hover button) and via slash commands and agent tools. Trash-first, workspace-accounting aware.",
   "type": "module",
   "license": "MIT",
